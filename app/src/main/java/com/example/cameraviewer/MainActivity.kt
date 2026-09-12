@@ -10,6 +10,7 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioButton
@@ -26,12 +27,16 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 data class Camera(val name: String, val url: String, val username: String = "", val password: String = "", val transport: String = "TCP")
+data class MultiView(val name: String, val cameras: List<String>)
 
 class MainActivity : Activity() {
     private var cameras = emptyList<Camera>()
+    private var multiViews = emptyList<MultiView>()
+    private var startupTarget = "HOME"
     private var player: ExoPlayer? = null
+    private val multiPlayers = mutableListOf<ExoPlayer>()
     private var currentScreen = "HOME"
-    private var playerReturnScreen = "HOME"
+    private var playerReturnScreen = "SETTINGS"
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
@@ -49,7 +54,10 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
         cameras = loadCameras(this)
-        showHome()
+        multiViews = loadMultiViews(this)
+        startupTarget = loadStartupTarget(this)
+        val selected = multiViews.firstOrNull { it.name == startupTarget }
+        if (selected != null) showMultiView(selected) else showHome()
     }
 
     override fun onBackPressed() {
@@ -58,13 +66,18 @@ class MainActivity : Activity() {
                 releasePlayer()
                 if (playerReturnScreen == "SETTINGS") showSettings() else showHome()
             }
+            currentScreen == "MULTIVIEW" -> {
+                releaseMultiPlayers()
+                showHome()
+            }
             currentScreen == "SETTINGS" -> showHome()
             else -> super.onBackPressed()
         }
     }
 
-    private fun baseScreen(title: String): LinearLayout {
+    private fun baseScreen(title: String, screenName: String, onBack: (() -> Unit)? = null): LinearLayout {
         root.removeAllViews()
+        currentScreen = screenName
         root.addView(TextView(this).apply {
             text = title
             textSize = 26f
@@ -87,10 +100,10 @@ class MainActivity : Activity() {
         isFocusableInTouchMode = true
         isClickable = true
         setPadding(dp(16), dp(4), dp(16), dp(4))
-        background = GradientDrawable().apply { setColor(Color.rgb(35,35,35)); cornerRadius = dp(6).toFloat() }
+        background = GradientDrawable().apply { setColor(Color.rgb(35, 35, 35)); cornerRadius = dp(6).toFloat() }
         setOnFocusChangeListener { view, hasFocus ->
             view.background = GradientDrawable().apply {
-                setColor(if (hasFocus) Color.rgb(70, 110, 180) else Color.rgb(35,35,35))
+                setColor(if (hasFocus) Color.rgb(70, 110, 180) else Color.rgb(35, 35, 35))
                 cornerRadius = dp(6).toFloat()
                 if (hasFocus) setStroke(dp(3), Color.WHITE)
             }
@@ -99,22 +112,25 @@ class MainActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(-1, dp(58)).apply { setMargins(0, dp(5), 0, dp(5)) }
     }
 
-    private fun showHome() {
-        currentScreen = "HOME"
-        val screen = baseScreen("")
+    private fun makeSectionTitle(text: String) = TextView(this).apply {
+        this.text = text
+        textSize = 20f
+        setTextColor(Color.WHITE)
+        includeFontPadding = true
+        setPadding(0, dp(18), 0, dp(6))
+    }
 
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
+    private fun showHome() {
+        releaseMultiPlayers()
+        currentScreen = "HOME"
+        val screen = baseScreen("", "HOME")
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         header.addView(TextView(this).apply {
             text = "CamViewer"
             textSize = 26f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER_VERTICAL
-            includeFontPadding = true
         }, LinearLayout.LayoutParams(0, dp(56), 1f))
-
         val settings = TextView(this).apply {
             text = "⚙"
             textSize = 30f
@@ -125,23 +141,22 @@ class MainActivity : Activity() {
             isClickable = true
             contentDescription = "Configurações"
             setPadding(dp(10), 0, dp(10), 0)
-            layoutParams = LinearLayout.LayoutParams(dp(64), dp(56))
-            background = GradientDrawable().apply { setColor(Color.rgb(35,35,35)); cornerRadius = dp(6).toFloat() }
+            background = GradientDrawable().apply { setColor(Color.rgb(35, 35, 35)); cornerRadius = dp(6).toFloat() }
             setOnFocusChangeListener { view, hasFocus ->
                 view.background = GradientDrawable().apply {
-                    setColor(if (hasFocus) Color.rgb(70, 110, 180) else Color.rgb(35,35,35))
+                    setColor(if (hasFocus) Color.rgb(70, 110, 180) else Color.rgb(35, 35, 35))
                     cornerRadius = dp(6).toFloat()
                     if (hasFocus) setStroke(dp(3), Color.WHITE)
                 }
             }
             setOnClickListener { showSettings() }
         }
-        header.addView(settings)
+        header.addView(settings, LinearLayout.LayoutParams(dp(64), dp(56)))
         screen.addView(header)
 
-        if (cameras.isEmpty()) {
+        if (multiViews.isEmpty()) {
             screen.addView(TextView(this).apply {
-                text = "Nenhuma MultiView configurada.\n\nVá em Configurações para adicionar suas câmeras e criar uma MultiView."
+                text = "Nenhuma MultiView configurada.\n\nVá em ⚙ Configurações para adicionar câmeras e criar uma MultiView."
                 textSize = 19f
                 setTextColor(Color.LTGRAY)
                 gravity = Gravity.CENTER
@@ -149,51 +164,74 @@ class MainActivity : Activity() {
                 setPadding(dp(30), dp(30), dp(30), dp(30))
                 layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
             })
+            settings.requestFocus()
         } else {
-            // Os botões das MultiViews criadas serão adicionados aqui.
-            screen.addView(TextView(this).apply {
-                text = "Nenhuma MultiView configurada.\n\nVá em Configurações para criar uma."
-                textSize = 19f
-                setTextColor(Color.LTGRAY)
-                gravity = Gravity.CENTER
-                includeFontPadding = true
-                layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
-            })
+            multiViews.forEach { multiView ->
+                screen.addView(makeButton(multiView.name) { showMultiView(multiView) })
+            }
+            screen.getChildAt(1).requestFocus()
         }
-
-        settings.requestFocus()
     }
 
-    private fun showMultiView() {
-        val screen = baseScreen("MultiView")
-        screen.addView(makeButton("Voltar") { showHome() })
-        cameras.forEach { camera -> screen.addView(makeButton(camera.name) { showPlayer(camera, "MULTIVIEW") }) }
-        if (cameras.isEmpty()) screen.addView(message("Nenhuma câmera configurada."))
+    private fun showMultiView(multiView: MultiView) {
+        releasePlayer()
+        releaseMultiPlayers()
+        val screen = baseScreen(multiView.name, "MULTIVIEW")
+        screen.addView(makeButton("Voltar") { releaseMultiPlayers(); showHome() })
+        val selected = multiView.cameras.mapNotNull { name -> cameras.firstOrNull { it.name == name } }
+        if (selected.isEmpty()) {
+            screen.addView(message("Nenhuma câmera configurada neste MultiView."))
+            screen.getChildAt(1).requestFocus()
+            return
+        }
+
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(4), dp(4), dp(4)) }
+        val rows = (selected.size + 1) / 2
+        for (rowIndex in 0 until rows) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            for (column in 0..1) {
+                val index = rowIndex * 2 + column
+                if (index < selected.size) {
+                    val camera = selected[index]
+                    val view = PlayerView(this).apply {
+                        useController = false
+                        keepScreenOn = true
+                        isFocusable = false
+                        setBackgroundColor(Color.rgb(15, 15, 15))
+                    }
+                    row.addView(view, LinearLayout.LayoutParams(0, 0, 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
+                    startMultiPlayer(camera, view)
+                } else {
+                    row.addView(View(this), LinearLayout.LayoutParams(0, 0, 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
+                }
+            }
+            grid.addView(row, LinearLayout.LayoutParams(-1, 0, 1f))
+        }
+        screen.addView(grid, LinearLayout.LayoutParams(-1, 0, 1f))
         screen.getChildAt(1).requestFocus()
     }
 
     private fun showSettings() {
-        currentScreen = "SETTINGS"
-        val screen = baseScreen("Configurações")
+        releasePlayer()
+        releaseMultiPlayers()
+        val screen = baseScreen("Configurações", "SETTINGS")
         screen.addView(makeButton("Voltar") { showHome() })
         val scroll = ScrollView(this).apply { isFillViewport = true }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(10), 0, dp(10)) }
         scroll.addView(content)
         screen.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
+        content.addView(makeSectionTitle("Câmeras"))
         val name = editText("Nome")
         val url = editText("URL RTSP")
         val username = editText("Usuário")
         val password = editText("Senha").apply { inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD }
         content.addView(name); content.addView(url); content.addView(username); content.addView(password)
-
-        content.addView(TextView(this).apply { text = "Transporte"; textSize = 17f; setTextColor(Color.WHITE); setPadding(0,dp(10),0,dp(2)) })
-        val transportGroup = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL; setPadding(0,0,0,dp(8)) }
+        content.addView(TextView(this).apply { text = "Transporte"; textSize = 17f; setTextColor(Color.WHITE); setPadding(0, dp(10), 0, dp(2)) })
+        val transportGroup = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL; setPadding(0, 0, 0, dp(8)) }
         val tcp = RadioButton(this).apply { id = View.generateViewId(); text = "TCP"; textSize = 17f; setTextColor(Color.WHITE); isChecked = true }
         val udp = RadioButton(this).apply { id = View.generateViewId(); text = "UDP"; textSize = 17f; setTextColor(Color.WHITE) }
-        transportGroup.addView(tcp); transportGroup.addView(udp)
-        content.addView(transportGroup)
-
+        transportGroup.addView(tcp); transportGroup.addView(udp); content.addView(transportGroup)
         content.addView(makeButton("Adicionar câmera") {
             if (name.text.toString().trim().isEmpty() || url.text.toString().trim().isEmpty()) return@makeButton
             cameras = cameras + Camera(name.text.toString().trim(), url.text.toString().trim(), username.text.toString().trim(), password.text.toString(), if (tcp.isChecked) "TCP" else "UDP")
@@ -201,70 +239,193 @@ class MainActivity : Activity() {
             showSettings()
         })
 
-        content.addView(TextView(this).apply { text = "Câmeras configuradas"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0,dp(20),0,dp(6)) })
+        content.addView(makeSectionTitle("Câmeras configuradas"))
         cameras.forEach { camera ->
-            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0,dp(8),0,dp(8)) }
+            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(8)) }
             row.addView(TextView(this).apply { text = "${camera.name}\n${camera.url}"; textSize = 16f; setTextColor(Color.WHITE); includeFontPadding = true })
             val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             val view = makeButton("Ver") { showPlayer(camera, "SETTINGS") }
-            view.layoutParams = LinearLayout.LayoutParams(0,dp(54),1f).apply { setMargins(0,dp(4),dp(4),dp(4)) }
-            val delete = makeButton("Excluir") { cameras = cameras.filterNot { it == camera }; saveCameras(this,cameras); showSettings() }
-            delete.layoutParams = LinearLayout.LayoutParams(0,dp(54),1f).apply { setMargins(dp(4),dp(4),0,dp(4)) }
+            view.layoutParams = LinearLayout.LayoutParams(0, dp(54), 1f).apply { setMargins(0, dp(4), dp(4), dp(4)) }
+            val delete = makeButton("Excluir") {
+                cameras = cameras.filterNot { it == camera }
+                multiViews = multiViews.map { it.copy(cameras = it.cameras.filterNot { name -> name == camera.name }) }
+                saveCameras(this, cameras); saveMultiViews(this, multiViews); showSettings()
+            }
+            delete.layoutParams = LinearLayout.LayoutParams(0, dp(54), 1f).apply { setMargins(dp(4), dp(4), 0, dp(4)) }
             actions.addView(view); actions.addView(delete); row.addView(actions); content.addView(row)
         }
+
+        content.addView(makeSectionTitle("MultiViews"))
+        content.addView(makeButton("Criar MultiView") { showMultiViewEditor() })
+        if (multiViews.isEmpty()) {
+            content.addView(TextView(this).apply { text = "Nenhum MultiView criado."; textSize = 17f; setTextColor(Color.LTGRAY); setPadding(0, dp(12), 0, dp(12)) })
+        } else {
+            multiViews.forEach { multiView ->
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                row.addView(TextView(this).apply { text = "${multiView.name}\n${multiView.cameras.size} câmera(s)"; textSize = 16f; setTextColor(Color.WHITE) }, LinearLayout.LayoutParams(0, dp(62), 1f))
+                val open = makeButton("Abrir") { showMultiView(multiView) }
+                open.layoutParams = LinearLayout.LayoutParams(dp(120), dp(54)).apply { setMargins(dp(4), dp(4), dp(4), dp(4)) }
+                row.addView(open)
+                val delete = makeButton("Excluir") {
+                    multiViews = multiViews.filterNot { it == multiView }
+                    if (startupTarget == multiView.name) startupTarget = "HOME"
+                    saveMultiViews(this, multiViews); saveStartupTarget(this, startupTarget); showSettings()
+                }
+                delete.layoutParams = LinearLayout.LayoutParams(dp(130), dp(54)).apply { setMargins(dp(4), dp(4), 0, dp(4)) }
+                row.addView(delete); content.addView(row)
+            }
+        }
+
+        content.addView(makeSectionTitle("Tela inicial"))
+        content.addView(TextView(this).apply { text = "Escolha o que será aberto ao iniciar o app:"; textSize = 16f; setTextColor(Color.LTGRAY); setPadding(0, 0, 0, dp(4)) })
+        val startupGroup = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        val homeRadio = RadioButton(this).apply { id = View.generateViewId(); text = "Tela principal"; textSize = 17f; setTextColor(Color.WHITE); isChecked = startupTarget == "HOME" }
+        startupGroup.addView(homeRadio)
+        multiViews.forEach { multiView ->
+            startupGroup.addView(RadioButton(this).apply { id = View.generateViewId(); text = multiView.name; textSize = 17f; setTextColor(Color.WHITE); tag = multiView.name; isChecked = startupTarget == multiView.name })
+        }
+        startupGroup.setOnCheckedChangeListener { group, checkedId ->
+            val selected = group.findViewById<RadioButton>(checkedId)
+            startupTarget = selected?.tag as? String ?: "HOME"
+            saveStartupTarget(this, startupTarget)
+        }
+        content.addView(startupGroup)
+        screen.getChildAt(1).requestFocus()
+    }
+
+    private fun showMultiViewEditor() {
+        val screen = baseScreen("Criar MultiView", "MULTIVIEW_EDITOR")
+        screen.addView(makeButton("Voltar") { showSettings() })
+        val scroll = ScrollView(this).apply { isFillViewport = true }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(10), 0, dp(10)) }
+        scroll.addView(content)
+        screen.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        content.addView(TextView(this).apply { text = "Nome do MultiView"; textSize = 17f; setTextColor(Color.WHITE); setPadding(0, dp(6), 0, dp(2)) })
+        val name = editText("Ex.: Todas as câmeras")
+        content.addView(name)
+        content.addView(TextView(this).apply { text = "Selecione as câmeras"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0, dp(18), 0, dp(6)) })
+        val checks = cameras.associateWith { camera ->
+            CheckBox(this).apply { text = camera.name; textSize = 18f; setTextColor(Color.WHITE); isFocusable = true; isFocusableInTouchMode = true; setPadding(0, dp(5), 0, dp(5)) }
+        }
+        checks.values.forEach { content.addView(it) }
+        if (checks.isEmpty()) content.addView(message("Adicione pelo menos uma câmera nas configurações antes de criar um MultiView."))
+        content.addView(makeButton("Salvar MultiView") {
+            val selected = checks.filter { it.value.isChecked }.keys.map { it.name }
+            if (name.text.toString().trim().isEmpty() || selected.isEmpty()) return@makeButton
+            val multiView = MultiView(name.text.toString().trim(), selected)
+            multiViews = multiViews.filterNot { it.name == multiView.name } + multiView
+            saveMultiViews(this, multiViews)
+            showSettings()
+        })
         screen.getChildAt(1).requestFocus()
     }
 
     private fun editText(hint: String) = EditText(this).apply {
         this.hint = hint; textSize = 17f; setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
-        includeFontPadding = true; setPadding(dp(12),0,dp(12),0)
-        layoutParams = LinearLayout.LayoutParams(-1,dp(58)).apply { setMargins(0,dp(5),0,dp(5)) }
+        includeFontPadding = true; setPadding(dp(12), 0, dp(12), 0)
+        layoutParams = LinearLayout.LayoutParams(-1, dp(58)).apply { setMargins(0, dp(5), 0, dp(5)) }
     }
 
-    private fun message(text: String) = TextView(this).apply { this.text=text; textSize=18f; setTextColor(Color.WHITE); gravity=Gravity.CENTER; layoutParams=LinearLayout.LayoutParams(-1,-2).apply { setMargins(0,dp(30),0,0) } }
+    private fun message(text: String) = TextView(this).apply {
+        this.text = text; textSize = 18f; setTextColor(Color.WHITE); gravity = Gravity.CENTER; includeFontPadding = true
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(30), 0, 0) }
+    }
 
     @OptIn(UnstableApi::class)
     private fun showPlayer(camera: Camera, returnScreen: String) {
-        releasePlayer()
-        playerReturnScreen = returnScreen
-        currentScreen = "PLAYER"
-        val playerView = PlayerView(this).apply { useController=false; keepScreenOn=true; isFocusable=false; setBackgroundColor(Color.BLACK) }
-        val layout = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
-        val top = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(dp(8),dp(4),dp(8),dp(4)) }
-        val back = makeButton("Voltar") {
-            releasePlayer()
-            if (playerReturnScreen == "SETTINGS") showSettings() else showHome()
-        }
-        back.layoutParams=LinearLayout.LayoutParams(dp(140),dp(54)).apply { setMargins(0,0,dp(8),0) }
+        releasePlayer(); releaseMultiPlayers(); playerReturnScreen = returnScreen; currentScreen = "PLAYER"
+        val playerView = PlayerView(this).apply { useController = false; keepScreenOn = true; isFocusable = false; setBackgroundColor(Color.BLACK) }
+        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(4), dp(8), dp(4)) }
+        val back = makeButton("Voltar") { releasePlayer(); if (playerReturnScreen == "SETTINGS") showSettings() else showHome() }
+        back.layoutParams = LinearLayout.LayoutParams(dp(140), dp(54)).apply { setMargins(0, 0, dp(8), 0) }
         top.addView(back)
-        top.addView(TextView(this).apply { text=camera.name; textSize=20f; setTextColor(Color.WHITE); gravity=Gravity.CENTER_VERTICAL }, LinearLayout.LayoutParams(0,dp(54),1f))
-        layout.addView(top); layout.addView(playerView,LinearLayout.LayoutParams(-1,0,1f)); setContentView(layout); back.requestFocus()
-        val mediaItem=MediaItem.fromUri(buildRtspUri(camera))
-        val factory=RtspMediaSource.Factory().setForceUseRtpTcp(camera.transport=="TCP").setTimeoutMs(10000)
-        player=ExoPlayer.Builder(this).build().apply {
-            addListener(object: Player.Listener { override fun onPlayerError(error: androidx.media3.common.PlaybackException) { layout.addView(TextView(this@MainActivity).apply { text="Erro: ${error.message ?: "falha na reprodução"}"; textSize=16f; setTextColor(Color.WHITE); setPadding(dp(12),dp(8),dp(12),dp(8)) }) } })
-            setMediaSource(factory.createMediaSource(mediaItem)); prepare(); playWhenReady=true
-        }
-        playerView.player=player
+        top.addView(TextView(this).apply { text = camera.name; textSize = 20f; setTextColor(Color.WHITE); gravity = Gravity.CENTER_VERTICAL }, LinearLayout.LayoutParams(0, dp(54), 1f))
+        layout.addView(top); layout.addView(playerView, LinearLayout.LayoutParams(-1, 0, 1f)); setContentView(layout); back.requestFocus()
+        startSinglePlayer(camera, playerView)
     }
 
-    private fun releasePlayer() { player?.release(); player=null }
+    @OptIn(UnstableApi::class)
+    private fun startSinglePlayer(camera: Camera, playerView: PlayerView) {
+        val factory = RtspMediaSource.Factory().setForceUseRtpTcp(camera.transport == "TCP").setTimeoutMs(10000)
+        player = ExoPlayer.Builder(this).build().apply {
+            addListener(playerErrorListener(playerView))
+            setMediaSource(factory.createMediaSource(MediaItem.fromUri(buildRtspUri(camera))))
+            prepare(); playWhenReady = true
+        }
+        playerView.player = player
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun startMultiPlayer(camera: Camera, playerView: PlayerView) {
+        val factory = RtspMediaSource.Factory().setForceUseRtpTcp(camera.transport == "TCP").setTimeoutMs(10000)
+        val p = ExoPlayer.Builder(this).build().apply {
+            addListener(playerErrorListener(playerView))
+            setMediaSource(factory.createMediaSource(MediaItem.fromUri(buildRtspUri(camera))))
+            prepare(); playWhenReady = true
+        }
+        multiPlayers.add(p)
+        playerView.player = p
+    }
+
+    private fun playerErrorListener(playerView: PlayerView) = object : Player.Listener {
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            val parent = playerView.parent as? LinearLayout
+            parent?.addView(TextView(this@MainActivity).apply {
+                text = "Erro: ${error.message ?: "falha na reprodução"}"
+                textSize = 14f
+                setTextColor(Color.WHITE)
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+            })
+        }
+    }
+
+    private fun releasePlayer() { player?.release(); player = null }
+    private fun releaseMultiPlayers() { multiPlayers.forEach { it.release() }; multiPlayers.clear() }
 }
 
 fun buildRtspUri(camera: Camera): Uri {
-    val url=camera.url.trim()
-    if(camera.username.isBlank()&&camera.password.isBlank()) return Uri.parse(url)
-    if(!url.startsWith("rtsp://")) return Uri.parse(url)
-    val rest=url.removePrefix("rtsp://")
+    val url = camera.url.trim()
+    if (camera.username.isBlank() && camera.password.isBlank()) return Uri.parse(url)
+    if (!url.startsWith("rtsp://")) return Uri.parse(url)
+    val rest = url.removePrefix("rtsp://")
     return Uri.parse("rtsp://${Uri.encode(camera.username)}:${Uri.encode(camera.password)}@$rest")
 }
 
-fun saveCameras(context: Context,cameras: List<Camera>) {
-    val array=JSONArray(); cameras.forEach { camera -> val obj=JSONObject(); obj.put("name",camera.name); obj.put("url",camera.url); obj.put("username",camera.username); obj.put("password",camera.password); obj.put("transport",camera.transport); array.put(obj) }
-    context.getSharedPreferences("cameras",Context.MODE_PRIVATE).edit().putString("list",array.toString()).apply()
+fun saveCameras(context: Context, cameras: List<Camera>) {
+    val array = JSONArray()
+    cameras.forEach { camera ->
+        val obj = JSONObject(); obj.put("name", camera.name); obj.put("url", camera.url); obj.put("username", camera.username); obj.put("password", camera.password); obj.put("transport", camera.transport); array.put(obj)
+    }
+    context.getSharedPreferences("cameras", Context.MODE_PRIVATE).edit().putString("list", array.toString()).apply()
 }
 
 fun loadCameras(context: Context): List<Camera> {
-    val json=context.getSharedPreferences("cameras",Context.MODE_PRIVATE).getString("list",null) ?: return emptyList()
-    return try { val array=JSONArray(json); buildList { for(i in 0 until array.length()) { val obj=array.getJSONObject(i); add(Camera(obj.optString("name"),obj.optString("url"),obj.optString("username"),obj.optString("password"),obj.optString("transport","TCP").uppercase())) } } } catch(_:Exception) { emptyList() }
+    val json = context.getSharedPreferences("cameras", Context.MODE_PRIVATE).getString("list", null) ?: return emptyList()
+    return try {
+        val array = JSONArray(json)
+        buildList { for (i in 0 until array.length()) { val obj = array.getJSONObject(i); add(Camera(obj.optString("name"), obj.optString("url"), obj.optString("username"), obj.optString("password"), obj.optString("transport", "TCP").uppercase())) } }
+    } catch (_: Exception) { emptyList() }
 }
+
+fun saveMultiViews(context: Context, multiViews: List<MultiView>) {
+    val array = JSONArray()
+    multiViews.forEach { multiView ->
+        val obj = JSONObject(); obj.put("name", multiView.name); obj.put("cameras", JSONArray(multiView.cameras)); array.put(obj)
+    }
+    context.getSharedPreferences("multiviews", Context.MODE_PRIVATE).edit().putString("list", array.toString()).apply()
+}
+
+fun loadMultiViews(context: Context): List<MultiView> {
+    val json = context.getSharedPreferences("multiviews", Context.MODE_PRIVATE).getString("list", null) ?: return emptyList()
+    return try {
+        val array = JSONArray(json)
+        buildList { for (i in 0 until array.length()) { val obj = array.getJSONObject(i); val list = obj.optJSONArray("cameras") ?: JSONArray(); add(MultiView(obj.optString("name"), buildList { for (j in 0 until list.length()) add(list.optString(j)) })) } }
+    } catch (_: Exception) { emptyList() }
+}
+
+fun saveStartupTarget(context: Context, target: String) {
+    context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().putString("startup", target).apply()
+}
+
+fun loadStartupTarget(context: Context): String = context.getSharedPreferences("settings", Context.MODE_PRIVATE).getString("startup", "HOME") ?: "HOME"

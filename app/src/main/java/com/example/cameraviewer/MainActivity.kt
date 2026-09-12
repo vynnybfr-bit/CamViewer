@@ -136,7 +136,7 @@ fun HomeScreen(
 
         Button(
             onClick = onSettings,
-            modifier = Modifier.fillMaxWidth().height(54.dp).focusable()
+            modifier = Modifier.fillMaxWidth().height(54.dp)
         ) {
             Text("⚙ Configurações")
         }
@@ -151,7 +151,7 @@ fun MultiViewScreen(
 ) {
     Column(Modifier.fillMaxSize().padding(18.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack, modifier = Modifier.focusable()) { Text("← Voltar") }
+            TextButton(onClick = onBack) { Text("← Voltar") }
             Spacer(Modifier.width(12.dp))
             Text("MultiView", style = MaterialTheme.typography.headlineSmall)
         }
@@ -259,7 +259,7 @@ fun SettingsScreen(
 
     Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack, modifier = Modifier.focusable()) { Text("← Voltar") }
+            TextButton(onClick = onBack) { Text("← Voltar") }
             Text("Configurações", style = MaterialTheme.typography.headlineSmall)
         }
         Spacer(Modifier.height(20.dp))
@@ -299,7 +299,7 @@ fun SettingsScreen(
                     keyboardController?.hide()
                 }
             },
-            modifier = Modifier.fillMaxWidth().focusable(),
+            modifier = Modifier.fillMaxWidth(),
             enabled = name.isNotBlank() && url.isNotBlank()
         ) { Text("Adicionar câmera") }
 
@@ -317,16 +317,10 @@ fun SettingsScreen(
                         Text(camera.url, style = MaterialTheme.typography.bodySmall)
                         Text("Protocolo RTSP: ${camera.transport}", style = MaterialTheme.typography.bodySmall)
                     }
-                    TextButton(
-                        onClick = { onOpenCamera(camera) },
-                        modifier = Modifier.focusable()
-                    ) {
+                    TextButton(onClick = { onOpenCamera(camera) }) {
                         Text("Ver")
                     }
-                    TextButton(
-                        onClick = { onDeleteCamera(camera) },
-                        modifier = Modifier.focusable()
-                    ) {
+                    TextButton(onClick = { onDeleteCamera(camera) }) {
                         Text("Excluir")
                     }
                 }
@@ -360,7 +354,7 @@ fun CameraPlayerScreen(camera: Camera, onBack: () -> Unit) {
     DisposableEffect(player) { onDispose { player.release() } }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack, modifier = Modifier.focusable()) { Text("← Voltar") }
+            TextButton(onClick = onBack) { Text("← Voltar") }
             Text(camera.name, style = MaterialTheme.typography.titleLarge)
         }
         AndroidView(

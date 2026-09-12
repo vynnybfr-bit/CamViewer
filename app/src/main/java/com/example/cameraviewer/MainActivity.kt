@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.CheckBox
+import android.widget.CompoundButton
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioButton
@@ -262,7 +263,7 @@ class MainActivity : Activity() {
         if (checks.isNotEmpty()) checks.values.first().requestFocus() else name.requestFocus()
     }
 
-    private fun noopCheckListener(button: CheckBox, checked: Boolean) {
+    private fun noopCheckListener(button: CompoundButton, checked: Boolean) {
         if (checked) { button.setOnCheckedChangeListener(null); button.isChecked = false }
     }
 

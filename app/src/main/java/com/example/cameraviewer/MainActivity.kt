@@ -178,36 +178,25 @@ class MainActivity : Activity() {
         releaseMultiPlayers()
         val screen = baseScreen(multiView.name, "MULTIVIEW")
         screen.addView(makeButton("Voltar") { releaseMultiPlayers(); showHome() })
-        val selected = multiView.cameras.mapNotNull { name -> cameras.firstOrNull { it.name == name } }
-        if (selected.isEmpty()) {
-            screen.addView(message("Nenhuma câmera configurada neste MultiView."))
+        val selected = multiView.cameras.take(2).mapNotNull { name -> cameras.firstOrNull { it.name == name } }
+        if (selected.size != 2) {
+            screen.addView(message("Esta MultiView precisa de exatamente 2 câmeras."))
             screen.getChildAt(1).requestFocus()
             return
         }
 
-        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(4), dp(4), dp(4)) }
-        val rows = (selected.size + 1) / 2
-        for (rowIndex in 0 until rows) {
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            for (column in 0..1) {
-                val index = rowIndex * 2 + column
-                if (index < selected.size) {
-                    val camera = selected[index]
-                    val view = PlayerView(this).apply {
-                        useController = false
-                        keepScreenOn = true
-                        isFocusable = false
-                        setBackgroundColor(Color.rgb(15, 15, 15))
-                    }
-                    row.addView(view, LinearLayout.LayoutParams(0, 0, 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
-                    startMultiPlayer(camera, view)
-                } else {
-                    row.addView(View(this), LinearLayout.LayoutParams(0, 0, 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
-                }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(4), dp(4), dp(4), dp(4)) }
+        selected.forEach { camera ->
+            val view = PlayerView(this).apply {
+                useController = false
+                keepScreenOn = true
+                isFocusable = false
+                setBackgroundColor(Color.rgb(15, 15, 15))
             }
-            grid.addView(row, LinearLayout.LayoutParams(-1, 0, 1f))
+            row.addView(view, LinearLayout.LayoutParams(0, -1, 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
+            startMultiPlayer(camera, view)
         }
-        screen.addView(grid, LinearLayout.LayoutParams(-1, 0, 1f))
+        screen.addView(row, LinearLayout.LayoutParams(-1, 0, 1f))
         screen.getChildAt(1).requestFocus()
     }
 
@@ -216,8 +205,8 @@ class MainActivity : Activity() {
         releaseMultiPlayers()
         val screen = baseScreen("Configurações", "SETTINGS")
         screen.addView(makeButton("Voltar") { showHome() })
-        val scroll = ScrollView(this).apply { isFillViewport = true }
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(10), 0, dp(10)) }
+        val scroll = ScrollView(this).apply { isFillViewport = true; isFocusable = false }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(10), 0, dp(10)); isFocusable = false }
         scroll.addView(content)
         screen.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
@@ -296,28 +285,52 @@ class MainActivity : Activity() {
     private fun showMultiViewEditor() {
         val screen = baseScreen("Criar MultiView", "MULTIVIEW_EDITOR")
         screen.addView(makeButton("Voltar") { showSettings() })
-        val scroll = ScrollView(this).apply { isFillViewport = true }
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(10), 0, dp(10)) }
+        val scroll = ScrollView(this).apply { isFillViewport = true; isFocusable = false }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(10), 0, dp(10)); isFocusable = false }
         scroll.addView(content)
         screen.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         content.addView(TextView(this).apply { text = "Nome do MultiView"; textSize = 17f; setTextColor(Color.WHITE); setPadding(0, dp(6), 0, dp(2)) })
-        val name = editText("Ex.: Todas as câmeras")
+        val name = editText("Ex.: Duas câmeras")
         content.addView(name)
-        content.addView(TextView(this).apply { text = "Selecione as câmeras"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0, dp(18), 0, dp(6)) })
+        content.addView(TextView(this).apply { text = "Selecione exatamente 2 câmeras"; textSize = 20f; setTextColor(Color.WHITE); setPadding(0, dp(18), 0, dp(6)) })
+        val counter = TextView(this).apply { text = "0/2 câmeras selecionadas"; textSize = 16f; setTextColor(Color.LTGRAY); setPadding(0, 0, 0, dp(6)) }
+        content.addView(counter)
+
         val checks = cameras.associateWith { camera ->
-            CheckBox(this).apply { text = camera.name; textSize = 18f; setTextColor(Color.WHITE); isFocusable = true; isFocusableInTouchMode = true; setPadding(0, dp(5), 0, dp(5)) }
+            CheckBox(this).apply {
+                text = camera.name
+                textSize = 18f
+                setTextColor(Color.WHITE)
+                isFocusable = true
+                isFocusableInTouchMode = true
+                isClickable = true
+                setPadding(0, dp(5), 0, dp(5))
+                setOnCheckedChangeListener { button, checked ->
+                    val count = checks.values.count { it.isChecked }
+                    if (checked && count > 2) {
+                        button.isChecked = false
+                    }
+                    counter.text = "${checks.values.count { it.isChecked }}/2 câmeras selecionadas"
+                }
+            }
         }
         checks.values.forEach { content.addView(it) }
-        if (checks.isEmpty()) content.addView(message("Adicione pelo menos uma câmera nas configurações antes de criar um MultiView."))
+        if (checks.isEmpty()) content.addView(message("Adicione pelo menos duas câmeras nas configurações antes de criar um MultiView."))
+
         content.addView(makeButton("Salvar MultiView") {
             val selected = checks.filter { it.value.isChecked }.keys.map { it.name }
-            if (name.text.toString().trim().isEmpty() || selected.isEmpty()) return@makeButton
-            val multiView = MultiView(name.text.toString().trim(), selected)
+            if (name.text.toString().trim().isEmpty() || selected.size != 2) return@makeButton
+            val multiView = MultiView(name.text.toString().trim(), selected.take(2))
             multiViews = multiViews.filterNot { it.name == multiView.name } + multiView
             saveMultiViews(this, multiViews)
             showSettings()
         })
-        screen.getChildAt(1).requestFocus()
+
+        if (checks.isNotEmpty()) {
+            checks.values.first().requestFocus()
+        } else {
+            name.requestFocus()
+        }
     }
 
     private fun editText(hint: String) = EditText(this).apply {
@@ -411,7 +424,7 @@ fun loadCameras(context: Context): List<Camera> {
 fun saveMultiViews(context: Context, multiViews: List<MultiView>) {
     val array = JSONArray()
     multiViews.forEach { multiView ->
-        val obj = JSONObject(); obj.put("name", multiView.name); obj.put("cameras", JSONArray(multiView.cameras)); array.put(obj)
+        val obj = JSONObject(); obj.put("name", multiView.name); obj.put("cameras", JSONArray(multiView.cameras.take(2))); array.put(obj)
     }
     context.getSharedPreferences("multiviews", Context.MODE_PRIVATE).edit().putString("list", array.toString()).apply()
 }
@@ -420,7 +433,7 @@ fun loadMultiViews(context: Context): List<MultiView> {
     val json = context.getSharedPreferences("multiviews", Context.MODE_PRIVATE).getString("list", null) ?: return emptyList()
     return try {
         val array = JSONArray(json)
-        buildList { for (i in 0 until array.length()) { val obj = array.getJSONObject(i); val list = obj.optJSONArray("cameras") ?: JSONArray(); add(MultiView(obj.optString("name"), buildList { for (j in 0 until list.length()) add(list.optString(j)) })) } }
+        buildList { for (i in 0 until array.length()) { val obj = array.getJSONObject(i); val list = obj.optJSONArray("cameras") ?: JSONArray(); val cameras = buildList { for (j in 0 until list.length()) add(list.optString(j)) }.take(2); if (cameras.size == 2) add(MultiView(obj.optString("name"), cameras)) } }
     } catch (_: Exception) { emptyList() }
 }
 

@@ -135,6 +135,16 @@ fun HomeScreen(
         Text("Câmeras", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(18.dp))
 
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            TvFocusButton("▶ MultiView", onMultiView, Modifier.weight(1f))
+            TvFocusButton("⚙ Configurações", onSettings, Modifier.weight(1f))
+        }
+
+        Spacer(Modifier.height(20.dp))
+
         if (cameras.isEmpty()) {
             Column(
                 Modifier.fillMaxSize(),
@@ -142,8 +152,6 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text("Nenhuma câmera configurada")
-                Spacer(Modifier.height(16.dp))
-                TvFocusButton("Configurar câmeras", onSettings)
             }
         } else {
             LazyVerticalGrid(
@@ -155,14 +163,6 @@ fun HomeScreen(
                 items(cameras) { camera ->
                     CameraCard(camera, onOpenCamera)
                 }
-            }
-            Spacer(Modifier.height(18.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                TvFocusButton("▶ MultiView", onMultiView, Modifier.weight(1f))
-                TvFocusButton("⚙ Configurações", onSettings, Modifier.weight(1f))
             }
         }
     }

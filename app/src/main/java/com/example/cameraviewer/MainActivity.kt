@@ -6,13 +6,17 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.CheckBox
 import android.widget.CompoundButton
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.RadioGroup
@@ -37,6 +41,10 @@ class MainActivity : Activity() {
     private var startupTarget = "HOME"
     private var player: ExoPlayer? = null
     private val multiPlayers = mutableListOf<ExoPlayer>()
+    private val multiAudioButtons = mutableListOf<TextView>()
+    private val multiAudioHandler = Handler(Looper.getMainLooper())
+    private var multiAudioHideRunnable: Runnable? = null
+    private var multiAudioControlsVisible = false
     private var currentScreen = "HOME"
     private var playerReturnScreen = "SETTINGS"
 
@@ -58,6 +66,25 @@ class MainActivity : Activity() {
         startupTarget = loadStartupTarget(this)
         val selected = multiViews.firstOrNull { it.name == startupTarget }
         if (selected != null) showMultiView(selected) else showHome()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (currentScreen == "MULTIVIEW" && event.action == KeyEvent.ACTION_DOWN) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_LEFT,
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (!multiAudioControlsVisible) {
+                        showMultiViewAudioControls()
+                        multiAudioButtons.firstOrNull()?.requestFocus()
+                        return true
+                    }
+                    scheduleMultiAudioControlsHide()
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onBackPressed() {
@@ -159,6 +186,9 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, 0)
         }
         selected.forEach { camera ->
+            val frame = FrameLayout(this).apply {
+                setBackgroundColor(Color.BLACK)
+            }
             val view = PlayerView(this).apply {
                 useController = false
                 keepScreenOn = true
@@ -166,10 +196,57 @@ class MainActivity : Activity() {
                 setBackgroundColor(Color.BLACK)
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             }
-            row.addView(view, LinearLayout.LayoutParams(0, -1, 1f).apply { setMargins(dp(1), 0, dp(1), 0) })
-            startMultiPlayer(camera, view)
+            frame.addView(view, FrameLayout.LayoutParams(-1, -1))
+
+            val audioButton = makeAudioButton()
+            audioButton.visibility = View.GONE
+            frame.addView(audioButton, FrameLayout.LayoutParams(dp(96), dp(72), Gravity.CENTER))
+            multiAudioButtons.add(audioButton)
+
+            row.addView(frame, LinearLayout.LayoutParams(0, -1, 1f).apply { setMargins(dp(1), 0, dp(1), 0) })
+            startMultiPlayer(camera, view, audioButton)
         }
         screen.addView(row, LinearLayout.LayoutParams(-1, 0, 1f))
+        multiAudioControlsVisible = false
+    }
+
+    private fun makeAudioButton() = TextView(this).apply {
+        text = "🔇"
+        textSize = 30f
+        setTextColor(Color.WHITE)
+        gravity = Gravity.CENTER
+        isFocusable = true
+        isFocusableInTouchMode = true
+        isClickable = true
+        contentDescription = "Ativar ou mutar áudio"
+        background = audioButtonBackground(false)
+        setOnFocusChangeListener { view, hasFocus -> view.background = audioButtonBackground(hasFocus) }
+    }
+
+    private fun audioButtonBackground(focused: Boolean) = GradientDrawable().apply {
+        setColor(if (focused) Color.rgb(55, 95, 165) else Color.argb(210, 25, 25, 25))
+        cornerRadius = dp(8).toFloat()
+        setStroke(dp(2), if (focused) Color.WHITE else Color.LTGRAY)
+    }
+
+    private fun showMultiViewAudioControls() {
+        if (currentScreen != "MULTIVIEW") return
+        multiAudioControlsVisible = true
+        multiAudioButtons.forEach { it.visibility = View.VISIBLE }
+        scheduleMultiAudioControlsHide()
+    }
+
+    private fun scheduleMultiAudioControlsHide() {
+        multiAudioHideRunnable?.let { multiAudioHandler.removeCallbacks(it) }
+        val runnable = Runnable { hideMultiViewAudioControls() }
+        multiAudioHideRunnable = runnable
+        multiAudioHandler.postDelayed(runnable, 5000L)
+    }
+
+    private fun hideMultiViewAudioControls() {
+        multiAudioControlsVisible = false
+        multiAudioButtons.forEach { it.visibility = View.GONE }
+        multiAudioHideRunnable = null
     }
 
     private fun showSettings() {
@@ -300,10 +377,22 @@ class MainActivity : Activity() {
     }
 
     @OptIn(UnstableApi::class)
-    private fun startMultiPlayer(camera: Camera, playerView: PlayerView) {
+    private fun startMultiPlayer(camera: Camera, playerView: PlayerView, audioButton: TextView) {
         val factory = RtspMediaSource.Factory().setForceUseRtpTcp(camera.transport == "TCP").setTimeoutMs(10000)
-        val p = ExoPlayer.Builder(this).build().apply { addListener(playerErrorListener(playerView)); setMediaSource(factory.createMediaSource(MediaItem.fromUri(buildRtspUri(camera)))); prepare(); playWhenReady = true }
-        multiPlayers.add(p); playerView.player = p
+        val p = ExoPlayer.Builder(this).build().apply {
+            volume = 0f
+            addListener(playerErrorListener(playerView))
+            setMediaSource(factory.createMediaSource(MediaItem.fromUri(buildRtspUri(camera))))
+            prepare()
+            playWhenReady = true
+        }
+        audioButton.setOnClickListener {
+            p.volume = if (p.volume > 0f) 0f else 1f
+            audioButton.text = if (p.volume > 0f) "🔊" else "🔇"
+            audioButton.contentDescription = if (p.volume > 0f) "Mutar áudio" else "Ativar áudio"
+        }
+        multiPlayers.add(p)
+        playerView.player = p
     }
 
     private fun playerErrorListener(playerView: PlayerView) = object : Player.Listener {
@@ -314,7 +403,16 @@ class MainActivity : Activity() {
     }
 
     private fun releasePlayer() { player?.release(); player = null }
-    private fun releaseMultiPlayers() { multiPlayers.forEach { it.release() }; multiPlayers.clear() }
+
+    private fun releaseMultiPlayers() {
+        multiAudioHideRunnable?.let { multiAudioHandler.removeCallbacks(it) }
+        multiAudioHideRunnable = null
+        multiAudioControlsVisible = false
+        multiAudioButtons.forEach { it.visibility = View.GONE }
+        multiAudioButtons.clear()
+        multiPlayers.forEach { it.release() }
+        multiPlayers.clear()
+    }
 }
 
 fun buildRtspUri(camera: Camera): Uri {

@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,7 +27,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
@@ -163,6 +171,27 @@ fun SettingsScreen(
     var password by remember { mutableStateOf("") }
     var transport by remember { mutableStateOf("TCP") }
 
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    val textFieldModifier = Modifier
+        .fillMaxWidth()
+        .onFocusChanged {
+            if (it.isFocused) {
+                keyboardController?.hide()
+            }
+        }
+        .onPreviewKeyEvent {
+            if (
+                it.type == KeyEventType.KeyDown &&
+                (it.key == Key.Enter || it.key == Key.NumPadEnter)
+            ) {
+                keyboardController?.show()
+                true
+            } else {
+                false
+            }
+        }
+
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -179,7 +208,7 @@ fun SettingsScreen(
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = textFieldModifier,
             label = { Text("Nome da câmera") },
             singleLine = true
         )
@@ -188,7 +217,7 @@ fun SettingsScreen(
         OutlinedTextField(
             value = url,
             onValueChange = { url = it },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = textFieldModifier,
             label = { Text("URL RTSP") },
             placeholder = { Text("rtsp://192.168.1.100:554/...") },
             singleLine = true
@@ -198,7 +227,7 @@ fun SettingsScreen(
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = textFieldModifier,
             label = { Text("Usuário") },
             singleLine = true
         )
@@ -207,7 +236,7 @@ fun SettingsScreen(
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = textFieldModifier,
             label = { Text("Senha") },
             singleLine = true
         )
@@ -218,18 +247,28 @@ fun SettingsScreen(
                 Text("Protocolo RTSP", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().focusable().clickable {
+                        transport = "TCP"
+                    },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     RadioButton(
                         selected = transport == "TCP",
-                        onClick = { transport = "TCP" }
+                        onClick = null
                     )
                     Text("TCP")
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().focusable().clickable {
+                        transport = "UDP"
+                    },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     RadioButton(
                         selected = transport == "UDP",
-                        onClick = { transport = "UDP" }
+                        onClick = null
                     )
                     Text("UDP")
                 }
@@ -247,6 +286,7 @@ fun SettingsScreen(
                     username = ""
                     password = ""
                     transport = "TCP"
+                    keyboardController?.hide()
                 }
             },
             modifier = Modifier.fillMaxWidth(),

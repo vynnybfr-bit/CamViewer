@@ -35,6 +35,7 @@ import org.json.JSONObject
 data class Camera(val name: String, val url: String, val username: String = "", val password: String = "", val transport: String = "TCP")
 data class MultiView(val name: String, val cameras: List<String>)
 
+@OptIn(UnstableApi::class)
 class MainActivity : Activity() {
     private var cameras = emptyList<Camera>()
     private var multiViews = emptyList<MultiView>()
@@ -66,6 +67,13 @@ class MainActivity : Activity() {
         startupTarget = loadStartupTarget(this)
         val selected = multiViews.firstOrNull { it.name == startupTarget }
         if (selected != null) showMultiView(selected) else showHome()
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // When Home is pressed on the TV remote, remove this task so the next
+        // launch starts the Activity from scratch and applies startupTarget.
+        finishAndRemoveTask()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -186,9 +194,7 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, 0)
         }
         selected.forEach { camera ->
-            val frame = FrameLayout(this).apply {
-                setBackgroundColor(Color.BLACK)
-            }
+            val frame = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
             val view = PlayerView(this).apply {
                 useController = false
                 keepScreenOn = true
@@ -200,7 +206,10 @@ class MainActivity : Activity() {
 
             val audioButton = makeAudioButton()
             audioButton.visibility = View.GONE
-            frame.addView(audioButton, FrameLayout.LayoutParams(dp(96), dp(72), Gravity.CENTER))
+            // Small speaker button in the upper-left corner of each camera.
+            frame.addView(audioButton, FrameLayout.LayoutParams(dp(64), dp(50), Gravity.TOP or Gravity.START).apply {
+                setMargins(dp(10), dp(10), 0, 0)
+            })
             multiAudioButtons.add(audioButton)
 
             row.addView(frame, LinearLayout.LayoutParams(0, -1, 1f).apply { setMargins(dp(1), 0, dp(1), 0) })
@@ -212,7 +221,7 @@ class MainActivity : Activity() {
 
     private fun makeAudioButton() = TextView(this).apply {
         text = "🔇"
-        textSize = 30f
+        textSize = 22f
         setTextColor(Color.WHITE)
         gravity = Gravity.CENTER
         isFocusable = true
@@ -282,7 +291,7 @@ class MainActivity : Activity() {
                 cameras = cameras.filterNot { it == camera }
                 multiViews = multiViews.map { mv -> mv.copy(cameras = mv.cameras.filterNot { it == camera.name }) }.filter { it.cameras.size == 2 }
                 saveCameras(this, cameras); saveMultiViews(this, multiViews)
-                if (startupTarget !in listOf("HOME") && multiViews.none { it.name == startupTarget }) { startupTarget = "HOME"; saveStartupTarget(this, startupTarget) }
+                if (startupTarget != "HOME" && multiViews.none { it.name == startupTarget }) { startupTarget = "HOME"; saveStartupTarget(this, startupTarget) }
                 showSettings()
             }
             delete.layoutParams = LinearLayout.LayoutParams(0, dp(54), 1f).apply { setMargins(dp(4), dp(4), 0, dp(4)) }
@@ -328,7 +337,15 @@ class MainActivity : Activity() {
             val check = CheckBox(this).apply { text = camera.name; textSize = 18f; setTextColor(Color.WHITE); isFocusable = true; isFocusableInTouchMode = true; isClickable = true; setPadding(0, dp(5), 0, dp(5)) }
             checks[camera] = check
             check.setOnCheckedChangeListener { button, checked ->
-                if (checked && checks.values.count { it.isChecked } > 2) { button.setOnCheckedChangeListener(null); button.isChecked = false; button.setOnCheckedChangeListener { b, c -> if (c && checks.values.count { it.isChecked } > 2) { b.setOnCheckedChangeListener(null); b.isChecked = false; b.setOnCheckedChangeListener(this@MainActivity::noopCheckListener) }; counter.text = "${checks.values.count { it.isChecked }}/2 câmeras selecionadas" }; return@setOnCheckedChangeListener }
+                if (checked && checks.values.count { it.isChecked } > 2) {
+                    button.setOnCheckedChangeListener(null)
+                    button.isChecked = false
+                    button.setOnCheckedChangeListener { b, c ->
+                        if (c && checks.values.count { it.isChecked } > 2) { b.setOnCheckedChangeListener(this@MainActivity::noopCheckListener); b.isChecked = false }
+                        counter.text = "${checks.values.count { it.isChecked }}/2 câmeras selecionadas"
+                    }
+                    return@setOnCheckedChangeListener
+                }
                 counter.text = "${checks.values.count { it.isChecked }}/2 câmeras selecionadas"
             }
             content.addView(check)
@@ -357,7 +374,6 @@ class MainActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(30), 0, 0) }
     }
 
-    @OptIn(UnstableApi::class)
     private fun showPlayer(camera: Camera, returnScreen: String) {
         releasePlayer(); releaseMultiPlayers(); playerReturnScreen = returnScreen; currentScreen = "PLAYER"
         val playerView = PlayerView(this).apply { useController = false; keepScreenOn = true; isFocusable = false; setBackgroundColor(Color.BLACK) }
@@ -369,14 +385,12 @@ class MainActivity : Activity() {
         layout.addView(top); layout.addView(playerView, LinearLayout.LayoutParams(-1, 0, 1f)); setContentView(layout); back.requestFocus(); startSinglePlayer(camera, playerView)
     }
 
-    @OptIn(UnstableApi::class)
     private fun startSinglePlayer(camera: Camera, playerView: PlayerView) {
         val factory = RtspMediaSource.Factory().setForceUseRtpTcp(camera.transport == "TCP").setTimeoutMs(10000)
         player = ExoPlayer.Builder(this).build().apply { addListener(playerErrorListener(playerView)); setMediaSource(factory.createMediaSource(MediaItem.fromUri(buildRtspUri(camera)))); prepare(); playWhenReady = true }
         playerView.player = player
     }
 
-    @OptIn(UnstableApi::class)
     private fun startMultiPlayer(camera: Camera, playerView: PlayerView, audioButton: TextView) {
         val factory = RtspMediaSource.Factory().setForceUseRtpTcp(camera.transport == "TCP").setTimeoutMs(10000)
         val p = ExoPlayer.Builder(this).build().apply {
@@ -397,7 +411,7 @@ class MainActivity : Activity() {
 
     private fun playerErrorListener(playerView: PlayerView) = object : Player.Listener {
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            val parent = playerView.parent as? LinearLayout
+            val parent = playerView.parent as? FrameLayout
             parent?.addView(TextView(this@MainActivity).apply { text = "Erro: ${error.message ?: "falha na reprodução"}"; textSize = 14f; setTextColor(Color.WHITE); setPadding(dp(8), dp(4), dp(8), dp(4)) })
         }
     }
@@ -416,28 +430,47 @@ class MainActivity : Activity() {
 }
 
 fun buildRtspUri(camera: Camera): Uri {
-    val url = camera.url.trim(); if (camera.username.isBlank() && camera.password.isBlank()) return Uri.parse(url); if (!url.startsWith("rtsp://")) return Uri.parse(url)
-    val rest = url.removePrefix("rtsp://"); return Uri.parse("rtsp://${Uri.encode(camera.username)}:${Uri.encode(camera.password)}@$rest")
+    val url = camera.url.trim()
+    if (camera.username.isBlank() && camera.password.isBlank()) return Uri.parse(url)
+    if (!url.startsWith("rtsp://")) return Uri.parse(url)
+    val rest = url.removePrefix("rtsp://")
+    return Uri.parse("rtsp://${Uri.encode(camera.username)}:${Uri.encode(camera.password)}@$rest")
 }
 
 fun saveCameras(context: Context, cameras: List<Camera>) {
-    val array = JSONArray(); cameras.forEach { camera -> val obj = JSONObject(); obj.put("name", camera.name); obj.put("url", camera.url); obj.put("username", camera.username); obj.put("password", camera.password); obj.put("transport", camera.transport); array.put(obj) }
+    val array = JSONArray()
+    cameras.forEach { camera ->
+        val obj = JSONObject()
+        obj.put("name", camera.name); obj.put("url", camera.url); obj.put("username", camera.username); obj.put("password", camera.password); obj.put("transport", camera.transport); array.put(obj)
+    }
     context.getSharedPreferences("cameras", Context.MODE_PRIVATE).edit().putString("list", array.toString()).apply()
 }
 
 fun loadCameras(context: Context): List<Camera> {
     val json = context.getSharedPreferences("cameras", Context.MODE_PRIVATE).getString("list", null) ?: return emptyList()
-    return try { val array = JSONArray(json); buildList { for (i in 0 until array.length()) { val obj = array.getJSONObject(i); add(Camera(obj.optString("name"), obj.optString("url"), obj.optString("username"), obj.optString("password"), obj.optString("transport", "TCP").uppercase())) } } } catch (_: Exception) { emptyList() }
+    return try {
+        val array = JSONArray(json)
+        buildList { for (i in 0 until array.length()) { val obj = array.getJSONObject(i); add(Camera(obj.optString("name"), obj.optString("url"), obj.optString("username"), obj.optString("password"), obj.optString("transport", "TCP").uppercase())) } }
+    } catch (_: Exception) { emptyList() }
 }
 
 fun saveMultiViews(context: Context, multiViews: List<MultiView>) {
-    val array = JSONArray(); multiViews.forEach { multiView -> val obj = JSONObject(); obj.put("name", multiView.name); obj.put("cameras", JSONArray(multiView.cameras.take(2))); array.put(obj) }
+    val array = JSONArray()
+    multiViews.forEach { multiView -> val obj = JSONObject(); obj.put("name", multiView.name); obj.put("cameras", JSONArray(multiView.cameras.take(2))); array.put(obj) }
     context.getSharedPreferences("multiviews", Context.MODE_PRIVATE).edit().putString("list", array.toString()).apply()
 }
 
 fun loadMultiViews(context: Context): List<MultiView> {
     val json = context.getSharedPreferences("multiviews", Context.MODE_PRIVATE).getString("list", null) ?: return emptyList()
-    return try { val array = JSONArray(json); buildList { for (i in 0 until array.length()) { val obj = array.getJSONObject(i); val list = obj.optJSONArray("cameras") ?: JSONArray(); val cameras = buildList { for (j in 0 until list.length()) add(list.optString(j)) }.take(2); if (cameras.size == 2) add(MultiView(obj.optString("name"), cameras)) } } } catch (_: Exception) { emptyList() }
+    return try {
+        val array = JSONArray(json)
+        buildList {
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i); val list = obj.optJSONArray("cameras") ?: JSONArray(); val selected = buildList { for (j in 0 until list.length()) add(list.optString(j)) }.take(2)
+                if (selected.size == 2) add(MultiView(obj.optString("name"), selected))
+            }
+        }
+    } catch (_: Exception) { emptyList() }
 }
 
 fun saveStartupTarget(context: Context, target: String) { context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().putString("startup", target).apply() }

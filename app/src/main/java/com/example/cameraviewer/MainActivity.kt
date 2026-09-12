@@ -3,13 +3,14 @@ package com.example.cameraviewer
 import android.app.Activity
 import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioButton
@@ -37,10 +38,12 @@ class MainActivity : Activity() {
     private var cameras = emptyList<Camera>()
     private var player: ExoPlayer? = null
 
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
     private val root: LinearLayout by lazy {
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 20, 24, 20)
+            setPadding(dp(28), dp(24), dp(28), dp(24))
             setBackgroundColor(Color.BLACK)
             isFocusable = true
             isFocusableInTouchMode = true
@@ -70,20 +73,34 @@ class MainActivity : Activity() {
             textSize = 26f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, 0, 0, 18)
+            includeFontPadding = true
         }
-        root.addView(titleView, LinearLayout.LayoutParams(-1, 64))
+        root.addView(titleView, LinearLayout.LayoutParams(-1, dp(56)))
         setContentView(root)
         return root
     }
 
-    private fun makeButton(text: String, action: () -> Unit): Button = Button(this).apply {
+    private fun makeButton(text: String, action: () -> Unit): TextView = TextView(this).apply {
         this.text = text
         textSize = 18f
+        setTextColor(Color.WHITE)
+        gravity = Gravity.CENTER
+        includeFontPadding = true
         isFocusable = true
         isFocusableInTouchMode = true
+        isClickable = true
+        setPadding(dp(12), dp(8), dp(12), dp(8))
+        background = GradientDrawable().apply {
+            setColor(Color.rgb(35, 35, 35))
+            cornerRadius = dp(6).toFloat()
+        }
+        setOnFocusChangeListener { view, hasFocus ->
+            view.alpha = if (hasFocus) 0.75f else 1f
+        }
         setOnClickListener { action() }
-        layoutParams = LinearLayout.LayoutParams(-1, 60).apply { setMargins(0, 6, 0, 6) }
+        layoutParams = LinearLayout.LayoutParams(-1, dp(58)).apply {
+            setMargins(0, dp(5), 0, dp(5))
+        }
     }
 
     private fun showHome() {
@@ -96,9 +113,10 @@ class MainActivity : Activity() {
                 text = "Câmeras"
                 textSize = 20f
                 setTextColor(Color.WHITE)
-                setPadding(0, 20, 0, 8)
+                includeFontPadding = true
+                setPadding(0, dp(18), 0, dp(6))
             }
-            screen.addView(label)
+            screen.addView(label, LinearLayout.LayoutParams(-1, dp(52)))
             cameras.forEach { camera ->
                 screen.addView(makeButton(camera.name) { showPlayer(camera) })
             }
@@ -126,10 +144,12 @@ class MainActivity : Activity() {
         val screen = baseScreen("Configurações")
         screen.addView(makeButton("Voltar") { showHome() })
 
-        val scroll = ScrollView(this)
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+        }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 10, 0, 10)
+            setPadding(0, dp(10), 0, dp(10))
         }
         scroll.addView(content)
         screen.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -138,21 +158,45 @@ class MainActivity : Activity() {
         val url = editText("URL RTSP")
         val username = editText("Usuário")
         val password = editText("Senha")
-        password.inputType = 0x81
+        password.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
 
         content.addView(name)
         content.addView(url)
         content.addView(username)
         content.addView(password)
 
+        val transportLabel = TextView(this).apply {
+            text = "Transporte"
+            textSize = 17f
+            setTextColor(Color.WHITE)
+            includeFontPadding = true
+            setPadding(0, dp(10), 0, dp(2))
+        }
+        content.addView(transportLabel)
+
         val transportGroup = RadioGroup(this).apply {
             orientation = RadioGroup.HORIZONTAL
-            setPadding(0, 8, 0, 8)
+            setPadding(0, 0, 0, dp(8))
         }
-        val tcp = RadioButton(this).apply { text = "TCP"; textSize = 17f; isChecked = true }
-        val udp = RadioButton(this).apply { text = "UDP"; textSize = 17f }
+        val tcp = RadioButton(this).apply {
+            id = View.generateViewId()
+            text = "TCP"
+            textSize = 17f
+            setTextColor(Color.WHITE)
+            isChecked = true
+        }
+        val udp = RadioButton(this).apply {
+            id = View.generateViewId()
+            text = "UDP"
+            textSize = 17f
+            setTextColor(Color.WHITE)
+        }
         transportGroup.addView(tcp)
         transportGroup.addView(udp)
+        transportGroup.setOnCheckedChangeListener { _, checkedId ->
+            tcp.isChecked = checkedId == tcp.id
+            udp.isChecked = checkedId == udp.id
+        }
         content.addView(transportGroup)
 
         content.addView(makeButton("Adicionar câmera") {
@@ -173,30 +217,38 @@ class MainActivity : Activity() {
             text = "Câmeras configuradas"
             textSize = 20f
             setTextColor(Color.WHITE)
-            setPadding(0, 20, 0, 8)
+            includeFontPadding = true
+            setPadding(0, dp(20), 0, dp(6))
         }
         content.addView(listTitle)
 
         cameras.forEach { camera ->
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(0, 8, 0, 8)
+                setPadding(0, dp(8), 0, dp(8))
             }
             val info = TextView(this).apply {
                 text = "${camera.name}\n${camera.url}"
                 textSize = 16f
                 setTextColor(Color.WHITE)
+                includeFontPadding = true
             }
-            row.addView(info)
-            val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            row.addView(info, LinearLayout.LayoutParams(-1, -2))
+            val actions = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
             val view = makeButton("Ver") { showPlayer(camera) }
-            view.layoutParams = LinearLayout.LayoutParams(0, 56, 1f).apply { setMargins(0, 4, 4, 4) }
+            view.layoutParams = LinearLayout.LayoutParams(0, dp(54), 1f).apply {
+                setMargins(0, dp(4), dp(4), dp(4))
+            }
             val delete = makeButton("Excluir") {
                 cameras = cameras.filterNot { it == camera }
                 saveCameras(this, cameras)
                 showSettings()
             }
-            delete.layoutParams = LinearLayout.LayoutParams(0, 56, 1f).apply { setMargins(4, 4, 0, 4) }
+            delete.layoutParams = LinearLayout.LayoutParams(0, dp(54), 1f).apply {
+                setMargins(dp(4), dp(4), 0, dp(4))
+            }
             actions.addView(view)
             actions.addView(delete)
             row.addView(actions)
@@ -212,8 +264,11 @@ class MainActivity : Activity() {
         setSingleLine(true)
         setTextColor(Color.WHITE)
         setHintTextColor(Color.LTGRAY)
-        setPadding(12, 0, 12, 0)
-        layoutParams = LinearLayout.LayoutParams(-1, 58).apply { setMargins(0, 5, 0, 5) }
+        includeFontPadding = true
+        setPadding(dp(12), 0, dp(12), 0)
+        layoutParams = LinearLayout.LayoutParams(-1, dp(58)).apply {
+            setMargins(0, dp(5), 0, dp(5))
+        }
     }
 
     private fun message(text: String) = TextView(this).apply {
@@ -221,7 +276,10 @@ class MainActivity : Activity() {
         textSize = 18f
         setTextColor(Color.WHITE)
         gravity = Gravity.CENTER
-        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 30, 0, 0) }
+        includeFontPadding = true
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(0, dp(30), 0, 0)
+        }
     }
 
     @OptIn(UnstableApi::class)
@@ -240,16 +298,20 @@ class MainActivity : Activity() {
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(8, 4, 8, 4)
+            setPadding(dp(8), dp(4), dp(8), dp(4))
         }
         val back = makeButton("Voltar") { releasePlayer(); showHome() }
-        back.layoutParams = LinearLayout.LayoutParams(140, 56).apply { setMargins(0, 0, 8, 0) }
+        back.layoutParams = LinearLayout.LayoutParams(dp(140), dp(54)).apply {
+            setMargins(0, 0, dp(8), 0)
+        }
         top.addView(back)
         top.addView(TextView(this).apply {
             text = camera.name
             textSize = 20f
             setTextColor(Color.WHITE)
-        }, LinearLayout.LayoutParams(0, 56, 1f))
+            gravity = Gravity.CENTER_VERTICAL
+            includeFontPadding = true
+        }, LinearLayout.LayoutParams(0, dp(54), 1f))
         layout.addView(top)
         layout.addView(playerView, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(layout)
@@ -266,7 +328,8 @@ class MainActivity : Activity() {
                         text = "Erro: ${error.message ?: "falha na reprodução"}"
                         textSize = 16f
                         setTextColor(Color.WHITE)
-                        setPadding(12, 8, 12, 8)
+                        includeFontPadding = true
+                        setPadding(dp(12), dp(8), dp(12), dp(8))
                     }
                     layout.addView(errorText)
                 }

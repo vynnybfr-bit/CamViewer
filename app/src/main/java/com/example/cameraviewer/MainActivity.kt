@@ -23,6 +23,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.rtsp.RtspMediaSource
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import org.json.JSONArray
 import org.json.JSONObject
@@ -147,6 +148,7 @@ class MainActivity : Activity() {
     private fun showMultiView(multiView: MultiView) {
         releasePlayer(); releaseMultiPlayers()
         val screen = baseScreen("", "MULTIVIEW")
+        screen.setPadding(0, 0, 0, 0)
         val selected = multiView.cameras.take(2).mapNotNull { name -> cameras.firstOrNull { it.name == name } }
         if (selected.size != 2) {
             screen.addView(message("Esta MultiView precisa de exatamente 2 câmeras."))
@@ -162,6 +164,7 @@ class MainActivity : Activity() {
                 keepScreenOn = true
                 isFocusable = false
                 setBackgroundColor(Color.BLACK)
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             }
             row.addView(view, LinearLayout.LayoutParams(0, -1, 1f).apply { setMargins(dp(1), 0, dp(1), 0) })
             startMultiPlayer(camera, view)

@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -28,7 +27,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -98,7 +96,7 @@ fun CameraViewerApp(context: Context) {
             "player" -> selectedCamera?.let { camera ->
                 CameraPlayerScreen(camera = camera, onBack = {
                     selectedCamera = null
-                    screen = "home"
+                    screen = "settings"
                 })
             }
             "multiview" -> MultiViewScreen(
@@ -110,13 +108,7 @@ fun CameraViewerApp(context: Context) {
                 }
             )
             else -> HomeScreen(
-                cameras = cameras,
-                onSettings = { screen = "settings" },
-                onMultiView = { screen = "multiview" },
-                onOpenCamera = { camera ->
-                    selectedCamera = camera
-                    screen = "player"
-                }
+                onSettings = { screen = "settings" }
             )
         }
     }
@@ -124,78 +116,31 @@ fun CameraViewerApp(context: Context) {
 
 @Composable
 fun HomeScreen(
-    cameras: List<Camera>,
-    onSettings: () -> Unit,
-    onMultiView: () -> Unit,
-    onOpenCamera: (Camera) -> Unit
+    onSettings: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().padding(28.dp)) {
+    Column(
+        Modifier.fillMaxSize().padding(28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text("CamViewer", style = MaterialTheme.typography.headlineLarge)
-        Spacer(Modifier.height(8.dp))
-        Text("Câmeras", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(18.dp))
-
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            TvFocusButton("▶ MultiView", onMultiView, Modifier.weight(1f))
-            TvFocusButton("⚙ Configurações", onSettings, Modifier.weight(1f))
-        }
-
+        Spacer(Modifier.height(12.dp))
+        Text("MultiViews", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(20.dp))
 
-        if (cameras.isEmpty()) {
-            Column(
-                Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text("Nenhuma câmera configurada")
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(cameras) { camera ->
-                    CameraCard(camera, onOpenCamera)
-                }
-            }
+        Box(
+            Modifier.weight(1f).fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Nenhuma MultiView criada")
+        }
+
+        Button(
+            onClick = onSettings,
+            modifier = Modifier.fillMaxWidth().height(54.dp).focusable()
+        ) {
+            Text("⚙ Configurações")
         }
     }
-}
-
-@Composable
-fun CameraCard(camera: Camera, onOpenCamera: (Camera) -> Unit) {
-    Card(
-        Modifier
-            .fillMaxWidth()
-            .height(150.dp)
-            .focusable()
-            .clickable { onOpenCamera(camera) },
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-    ) {
-        Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.Center) {
-            Text(camera.name, style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(8.dp))
-            Text("RTSP • ${camera.transport}", style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(8.dp))
-            Text("OK para abrir", style = MaterialTheme.typography.labelLarge)
-        }
-    }
-}
-
-@Composable
-fun TvFocusButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Button(
-        onClick = onClick,
-        modifier = modifier
-            .focusable()
-            .height(54.dp)
-    ) { Text(text) }
 }
 
 @Composable
@@ -266,7 +211,9 @@ fun MultiViewTile(camera: Camera, onOpenCamera: (Camera) -> Unit) {
             )
             Text(
                 camera.name,
-                modifier = Modifier.align(Alignment.BottomStart).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)).padding(8.dp),
+                modifier = Modifier.align(Alignment.BottomStart)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+                    .padding(8.dp),
                 style = MaterialTheme.typography.labelLarge
             )
         }
@@ -361,13 +308,27 @@ fun SettingsScreen(
         Spacer(Modifier.height(10.dp))
         cameras.forEach { camera ->
             Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f).focusable().clickable { onOpenCamera(camera) }) {
+                Row(
+                    Modifier.fillMaxWidth().padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
                         Text(camera.name, style = MaterialTheme.typography.titleSmall)
                         Text(camera.url, style = MaterialTheme.typography.bodySmall)
                         Text("Protocolo RTSP: ${camera.transport}", style = MaterialTheme.typography.bodySmall)
                     }
-                    TextButton(onClick = { onDeleteCamera(camera) }, modifier = Modifier.focusable()) { Text("Excluir") }
+                    TextButton(
+                        onClick = { onOpenCamera(camera) },
+                        modifier = Modifier.focusable()
+                    ) {
+                        Text("Ver")
+                    }
+                    TextButton(
+                        onClick = { onDeleteCamera(camera) },
+                        modifier = Modifier.focusable()
+                    ) {
+                        Text("Excluir")
+                    }
                 }
             }
         }

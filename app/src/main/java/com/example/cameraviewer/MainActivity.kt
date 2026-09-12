@@ -30,6 +30,8 @@ data class Camera(val name: String, val url: String, val username: String = "", 
 class MainActivity : Activity() {
     private var cameras = emptyList<Camera>()
     private var player: ExoPlayer? = null
+    private var currentScreen = "HOME"
+    private var playerReturnScreen = "HOME"
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
@@ -51,7 +53,14 @@ class MainActivity : Activity() {
     }
 
     override fun onBackPressed() {
-        if (player != null) { releasePlayer(); showHome() } else super.onBackPressed()
+        when {
+            player != null -> {
+                releasePlayer()
+                if (playerReturnScreen == "SETTINGS") showSettings() else showHome()
+            }
+            currentScreen == "SETTINGS" -> showHome()
+            else -> super.onBackPressed()
+        }
     }
 
     private fun baseScreen(title: String): LinearLayout {
@@ -74,42 +83,97 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         includeFontPadding = true
         maxLines = 1
-        ellipsize = null
         isFocusable = true
         isFocusableInTouchMode = true
         isClickable = true
         setPadding(dp(16), dp(4), dp(16), dp(4))
         background = GradientDrawable().apply { setColor(Color.rgb(35,35,35)); cornerRadius = dp(6).toFloat() }
         setOnFocusChangeListener { view, hasFocus ->
-            val bg = GradientDrawable().apply {
+            view.background = GradientDrawable().apply {
                 setColor(if (hasFocus) Color.rgb(70, 110, 180) else Color.rgb(35,35,35))
                 cornerRadius = dp(6).toFloat()
                 if (hasFocus) setStroke(dp(3), Color.WHITE)
             }
-            view.background = bg
-            view.scaleX = 1f
-            view.scaleY = 1f
         }
         setOnClickListener { action() }
         layoutParams = LinearLayout.LayoutParams(-1, dp(58)).apply { setMargins(0, dp(5), 0, dp(5)) }
     }
 
     private fun showHome() {
-        val screen = baseScreen("CamViewer")
-        screen.addView(makeButton("Configurações") { showSettings() })
-        cameras.forEach { camera -> screen.addView(makeButton(camera.name) { showPlayer(camera) }) }
-        screen.getChildAt(1).requestFocus()
+        currentScreen = "HOME"
+        val screen = baseScreen("")
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        header.addView(TextView(this).apply {
+            text = "CamViewer"
+            textSize = 26f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER_VERTICAL
+            includeFontPadding = true
+        }, LinearLayout.LayoutParams(0, dp(56), 1f))
+
+        val settings = TextView(this).apply {
+            text = "⚙"
+            textSize = 30f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            isFocusable = true
+            isFocusableInTouchMode = true
+            isClickable = true
+            contentDescription = "Configurações"
+            setPadding(dp(10), 0, dp(10), 0)
+            layoutParams = LinearLayout.LayoutParams(dp(64), dp(56))
+            background = GradientDrawable().apply { setColor(Color.rgb(35,35,35)); cornerRadius = dp(6).toFloat() }
+            setOnFocusChangeListener { view, hasFocus ->
+                view.background = GradientDrawable().apply {
+                    setColor(if (hasFocus) Color.rgb(70, 110, 180) else Color.rgb(35,35,35))
+                    cornerRadius = dp(6).toFloat()
+                    if (hasFocus) setStroke(dp(3), Color.WHITE)
+                }
+            }
+            setOnClickListener { showSettings() }
+        }
+        header.addView(settings)
+        screen.addView(header)
+
+        if (cameras.isEmpty()) {
+            screen.addView(TextView(this).apply {
+                text = "Nenhuma MultiView configurada.\n\nVá em Configurações para adicionar suas câmeras e criar uma MultiView."
+                textSize = 19f
+                setTextColor(Color.LTGRAY)
+                gravity = Gravity.CENTER
+                includeFontPadding = true
+                setPadding(dp(30), dp(30), dp(30), dp(30))
+                layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
+            })
+        } else {
+            // Os botões das MultiViews criadas serão adicionados aqui.
+            screen.addView(TextView(this).apply {
+                text = "Nenhuma MultiView configurada.\n\nVá em Configurações para criar uma."
+                textSize = 19f
+                setTextColor(Color.LTGRAY)
+                gravity = Gravity.CENTER
+                includeFontPadding = true
+                layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
+            })
+        }
+
+        settings.requestFocus()
     }
 
     private fun showMultiView() {
         val screen = baseScreen("MultiView")
         screen.addView(makeButton("Voltar") { showHome() })
-        cameras.forEach { camera -> screen.addView(makeButton(camera.name) { showPlayer(camera) }) }
-        if (cameras.isEmpty()) screen.addView(message("Nenhum MultiView configurado."))
+        cameras.forEach { camera -> screen.addView(makeButton(camera.name) { showPlayer(camera, "MULTIVIEW") }) }
+        if (cameras.isEmpty()) screen.addView(message("Nenhuma câmera configurada."))
         screen.getChildAt(1).requestFocus()
     }
 
     private fun showSettings() {
+        currentScreen = "SETTINGS"
         val screen = baseScreen("Configurações")
         screen.addView(makeButton("Voltar") { showHome() })
         val scroll = ScrollView(this).apply { isFillViewport = true }
@@ -142,7 +206,7 @@ class MainActivity : Activity() {
             val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0,dp(8),0,dp(8)) }
             row.addView(TextView(this).apply { text = "${camera.name}\n${camera.url}"; textSize = 16f; setTextColor(Color.WHITE); includeFontPadding = true })
             val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            val view = makeButton("Ver") { showPlayer(camera) }
+            val view = makeButton("Ver") { showPlayer(camera, "SETTINGS") }
             view.layoutParams = LinearLayout.LayoutParams(0,dp(54),1f).apply { setMargins(0,dp(4),dp(4),dp(4)) }
             val delete = makeButton("Excluir") { cameras = cameras.filterNot { it == camera }; saveCameras(this,cameras); showSettings() }
             delete.layoutParams = LinearLayout.LayoutParams(0,dp(54),1f).apply { setMargins(dp(4),dp(4),0,dp(4)) }
@@ -160,12 +224,17 @@ class MainActivity : Activity() {
     private fun message(text: String) = TextView(this).apply { this.text=text; textSize=18f; setTextColor(Color.WHITE); gravity=Gravity.CENTER; layoutParams=LinearLayout.LayoutParams(-1,-2).apply { setMargins(0,dp(30),0,0) } }
 
     @OptIn(UnstableApi::class)
-    private fun showPlayer(camera: Camera) {
+    private fun showPlayer(camera: Camera, returnScreen: String) {
         releasePlayer()
+        playerReturnScreen = returnScreen
+        currentScreen = "PLAYER"
         val playerView = PlayerView(this).apply { useController=false; keepScreenOn=true; isFocusable=false; setBackgroundColor(Color.BLACK) }
         val layout = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
         val top = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(dp(8),dp(4),dp(8),dp(4)) }
-        val back = makeButton("Voltar") { releasePlayer(); showHome() }
+        val back = makeButton("Voltar") {
+            releasePlayer()
+            if (playerReturnScreen == "SETTINGS") showSettings() else showHome()
+        }
         back.layoutParams=LinearLayout.LayoutParams(dp(140),dp(54)).apply { setMargins(0,0,dp(8),0) }
         top.addView(back)
         top.addView(TextView(this).apply { text=camera.name; textSize=20f; setTextColor(Color.WHITE); gravity=Gravity.CENTER_VERTICAL }, LinearLayout.LayoutParams(0,dp(54),1f))

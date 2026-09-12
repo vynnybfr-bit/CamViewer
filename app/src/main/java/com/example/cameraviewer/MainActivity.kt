@@ -5,9 +5,12 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,13 +18,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -94,9 +101,18 @@ fun CameraViewerApp(context: Context) {
                     screen = "home"
                 })
             }
+            "multiview" -> MultiViewScreen(
+                cameras = cameras,
+                onBack = { screen = "home" },
+                onOpenCamera = { camera ->
+                    selectedCamera = camera
+                    screen = "player"
+                }
+            )
             else -> HomeScreen(
                 cameras = cameras,
                 onSettings = { screen = "settings" },
+                onMultiView = { screen = "multiview" },
                 onOpenCamera = { camera ->
                     selectedCamera = camera
                     screen = "player"
@@ -110,11 +126,15 @@ fun CameraViewerApp(context: Context) {
 fun HomeScreen(
     cameras: List<Camera>,
     onSettings: () -> Unit,
+    onMultiView: () -> Unit,
     onOpenCamera: (Camera) -> Unit
 ) {
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Text("CameraViewer", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(20.dp))
+    Column(Modifier.fillMaxSize().padding(28.dp)) {
+        Text("CamViewer", style = MaterialTheme.typography.headlineLarge)
+        Spacer(Modifier.height(8.dp))
+        Text("Câmeras", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(18.dp))
+
         if (cameras.isEmpty()) {
             Column(
                 Modifier.fillMaxSize(),
@@ -123,28 +143,132 @@ fun HomeScreen(
             ) {
                 Text("Nenhuma câmera configurada")
                 Spacer(Modifier.height(16.dp))
-                Button(onClick = onSettings) { Text("Configurar câmeras") }
+                TvFocusButton("Configurar câmeras", onSettings)
             }
         } else {
-            LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 items(cameras) { camera ->
-                    Card(Modifier.fillMaxWidth().padding(vertical = 5.dp).clickable {
-                        onOpenCamera(camera)
-                    }) {
-                        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                            Text(camera.name, style = MaterialTheme.typography.titleMedium)
-                            Spacer(Modifier.height(4.dp))
-                            Text(camera.url, style = MaterialTheme.typography.bodySmall)
-                            Spacer(Modifier.height(4.dp))
-                            Text("Protocolo RTSP: ${camera.transport}", style = MaterialTheme.typography.bodySmall)
-                            Spacer(Modifier.height(8.dp))
-                            Text("Toque para visualizar", style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
+                    CameraCard(camera, onOpenCamera)
                 }
             }
-            Spacer(Modifier.height(10.dp))
-            Button(onClick = onSettings, Modifier.fillMaxWidth()) { Text("⚙ Configurações") }
+            Spacer(Modifier.height(18.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                TvFocusButton("▶ MultiView", onMultiView, Modifier.weight(1f))
+                TvFocusButton("⚙ Configurações", onSettings, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+fun CameraCard(camera: Camera, onOpenCamera: (Camera) -> Unit) {
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .focusable()
+            .clickable { onOpenCamera(camera) },
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.Center) {
+            Text(camera.name, style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(8.dp))
+            Text("RTSP • ${camera.transport}", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(8.dp))
+            Text("OK para abrir", style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+@Composable
+fun TvFocusButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Button(
+        onClick = onClick,
+        modifier = modifier
+            .focusable()
+            .height(54.dp)
+    ) { Text(text) }
+}
+
+@Composable
+fun MultiViewScreen(
+    cameras: List<Camera>,
+    onBack: () -> Unit,
+    onOpenCamera: (Camera) -> Unit
+) {
+    Column(Modifier.fillMaxSize().padding(18.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack, modifier = Modifier.focusable()) { Text("← Voltar") }
+            Spacer(Modifier.width(12.dp))
+            Text("MultiView", style = MaterialTheme.typography.headlineSmall)
+        }
+        Spacer(Modifier.height(8.dp))
+        if (cameras.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Nenhuma câmera configurada")
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(cameras) { camera ->
+                    MultiViewTile(camera, onOpenCamera)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(UnstableApi::class)
+@Composable
+fun MultiViewTile(camera: Camera, onOpenCamera: (Camera) -> Unit) {
+    val context = LocalContext.current
+    val player = remember(camera) {
+        val mediaItem = MediaItem.fromUri(buildRtspUri(camera))
+        val factory = RtspMediaSource.Factory()
+            .setForceUseRtpTcp(camera.transport == "TCP")
+            .setTimeoutMs(10000)
+        ExoPlayer.Builder(context).build().apply {
+            setMediaSource(factory.createMediaSource(mediaItem))
+            prepare()
+            playWhenReady = true
+        }
+    }
+    DisposableEffect(player) { onDispose { player.release() } }
+
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .height(260.dp)
+            .focusable()
+            .clickable { onOpenCamera(camera) },
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant)) {
+            AndroidView(
+                factory = { PlayerView(it).apply {
+                    this.player = player
+                    useController = false
+                    keepScreenOn = true
+                } },
+                modifier = Modifier.fillMaxSize()
+            )
+            Text(
+                camera.name,
+                modifier = Modifier.align(Alignment.BottomStart).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)).padding(8.dp),
+                style = MaterialTheme.typography.labelLarge
+            )
         }
     }
 }
@@ -188,69 +312,31 @@ fun SettingsScreen(
 
     Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("← Voltar") }
+            TextButton(onClick = onBack, modifier = Modifier.focusable()) { Text("← Voltar") }
             Text("Configurações", style = MaterialTheme.typography.headlineSmall)
         }
         Spacer(Modifier.height(20.dp))
         Text("Adicionar câmera", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(10.dp))
 
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            modifier = fieldModifier("name"),
-            label = { Text("Nome da câmera") },
-            singleLine = true,
-            readOnly = editingField != "name"
-        )
+        OutlinedTextField(value = name, onValueChange = { name = it }, modifier = fieldModifier("name"), label = { Text("Nome da câmera") }, singleLine = true, readOnly = editingField != "name")
         Spacer(Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = url,
-            onValueChange = { url = it },
-            modifier = fieldModifier("url"),
-            label = { Text("URL RTSP") },
-            placeholder = { Text("rtsp://192.168.1.100:554/...") },
-            singleLine = true,
-            readOnly = editingField != "url"
-        )
+        OutlinedTextField(value = url, onValueChange = { url = it }, modifier = fieldModifier("url"), label = { Text("URL RTSP") }, placeholder = { Text("rtsp://192.168.1.100:554/...") }, singleLine = true, readOnly = editingField != "url")
         Spacer(Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = username,
-            onValueChange = { username = it },
-            modifier = fieldModifier("username"),
-            label = { Text("Usuário") },
-            singleLine = true,
-            readOnly = editingField != "username"
-        )
+        OutlinedTextField(value = username, onValueChange = { username = it }, modifier = fieldModifier("username"), label = { Text("Usuário") }, singleLine = true, readOnly = editingField != "username")
         Spacer(Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            modifier = fieldModifier("password"),
-            label = { Text("Senha") },
-            singleLine = true,
-            readOnly = editingField != "password"
-        )
+        OutlinedTextField(value = password, onValueChange = { password = it }, modifier = fieldModifier("password"), label = { Text("Senha") }, singleLine = true, readOnly = editingField != "password")
         Spacer(Modifier.height(14.dp))
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
                 Text("Protocolo RTSP", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(6.dp))
-                Row(
-                    Modifier.fillMaxWidth().focusable().clickable { transport = "TCP" },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(Modifier.fillMaxWidth().focusable().clickable { transport = "TCP" }, verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = transport == "TCP", onClick = null)
                     Text("TCP")
                 }
-                Row(
-                    Modifier.fillMaxWidth().focusable().clickable { transport = "UDP" },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(Modifier.fillMaxWidth().focusable().clickable { transport = "UDP" }, verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = transport == "UDP", onClick = null)
                     Text("UDP")
                 }
@@ -262,37 +348,26 @@ fun SettingsScreen(
             onClick = {
                 if (name.isNotBlank() && url.isNotBlank()) {
                     onAddCamera(name.trim(), url.trim(), username.trim(), password, transport)
-                    name = ""
-                    url = ""
-                    username = ""
-                    password = ""
-                    transport = "TCP"
-                    editingField = null
+                    name = ""; url = ""; username = ""; password = ""; transport = "TCP"; editingField = null
                     keyboardController?.hide()
                 }
             },
-            Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusable(),
             enabled = name.isNotBlank() && url.isNotBlank()
         ) { Text("Adicionar câmera") }
 
         Spacer(Modifier.height(25.dp))
         Text("Câmeras configuradas", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(10.dp))
-
         cameras.forEach { camera ->
             Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Row(
-                    Modifier.fillMaxWidth().padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f).clickable { onOpenCamera(camera) }) {
+                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f).focusable().clickable { onOpenCamera(camera) }) {
                         Text(camera.name, style = MaterialTheme.typography.titleSmall)
                         Text(camera.url, style = MaterialTheme.typography.bodySmall)
                         Text("Protocolo RTSP: ${camera.transport}", style = MaterialTheme.typography.bodySmall)
-                        Spacer(Modifier.height(4.dp))
-                        Text("Toque para visualizar", style = MaterialTheme.typography.labelMedium)
                     }
-                    TextButton(onClick = { onDeleteCamera(camera) }) { Text("Excluir") }
+                    TextButton(onClick = { onDeleteCamera(camera) }, modifier = Modifier.focusable()) { Text("Excluir") }
                 }
             }
         }
@@ -324,7 +399,7 @@ fun CameraPlayerScreen(camera: Camera, onBack: () -> Unit) {
     DisposableEffect(player) { onDispose { player.release() } }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("← Voltar") }
+            TextButton(onClick = onBack, modifier = Modifier.focusable()) { Text("← Voltar") }
             Text(camera.name, style = MaterialTheme.typography.titleLarge)
         }
         AndroidView(
@@ -361,13 +436,11 @@ fun saveCameras(context: Context, cameras: List<Camera>) {
         obj.put("transport", camera.transport)
         array.put(obj)
     }
-    context.getSharedPreferences("cameras", Context.MODE_PRIVATE)
-        .edit().putString("list", array.toString()).apply()
+    context.getSharedPreferences("cameras", Context.MODE_PRIVATE).edit().putString("list", array.toString()).apply()
 }
 
 fun loadCameras(context: Context): List<Camera> {
-    val json = context.getSharedPreferences("cameras", Context.MODE_PRIVATE)
-        .getString("list", null) ?: return emptyList()
+    val json = context.getSharedPreferences("cameras", Context.MODE_PRIVATE).getString("list", null) ?: return emptyList()
     return try {
         val array = JSONArray(json)
         buildList {

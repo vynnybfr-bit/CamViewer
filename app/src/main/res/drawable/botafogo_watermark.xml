@@ -4,14 +4,14 @@
     android:height="300dp"
     android:viewportWidth="266"
     android:viewportHeight="300">
+    <!-- High-contrast Botafogo-inspired shield watermark -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:fillAlpha="0.22"
-        android:pathData="M20,12 L246,12 L246,166 C246,224 205,266 133,292 C61,266 20,224 20,166 Z" />
+        android:pathData="M16,8 L250,8 L250,166 C250,226 208,271 133,296 C58,271 16,226 16,166 Z" />
     <path
         android:fillColor="#FF000000"
-        android:pathData="M27,19 L239,19 L239,164 C239,216 201,254 133,280 C65,254 27,216 27,164 Z" />
+        android:pathData="M23,15 L243,15 L243,164 C243,219 204,261 133,286 C62,261 23,219 23,164 Z" />
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M133,48 L144,82 L180,82 L151,103 L162,138 L133,117 L104,138 L115,103 L86,82 L122,82 Z" />
+        android:pathData="M133,45 L144,79 L180,79 L151,101 L162,136 L133,115 L104,136 L115,101 L86,79 L122,79 Z" />
 </vector>

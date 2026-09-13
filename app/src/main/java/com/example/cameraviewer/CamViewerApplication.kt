@@ -54,8 +54,9 @@ class CamViewerApplication : Application() {
         decor.addView(watermark, params)
 
         decor.viewTreeObserver.addOnGlobalLayoutListener {
-            if (!watermark.isAttachedToWindow) return@addOnGlobalLayoutListener
-            watermark.visibility = if (isHomeScreen(decor)) View.VISIBLE else View.GONE
+            if (watermark.isAttachedToWindow) {
+                watermark.visibility = if (isHomeScreen(decor)) View.VISIBLE else View.GONE
+            }
         }
     }
 

@@ -37,7 +37,7 @@ class CamViewerApplication : Application() {
             tag = WATERMARK_TAG
             setImageResource(com.example.cameraviewer.R.drawable.botafogo_watermark)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            alpha = 1.0f
+            alpha = 0.6f
             isClickable = false
             isFocusable = false
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -51,7 +51,9 @@ class CamViewerApplication : Application() {
             gravity = Gravity.CENTER
         }
 
-        decor.addView(watermark, params)
+        // Put the watermark behind the app content so it never covers
+        // the text, buttons, or other elements on the home screen.
+        decor.addView(watermark, 0, params)
 
         decor.viewTreeObserver.addOnGlobalLayoutListener {
             if (watermark.isAttachedToWindow) {

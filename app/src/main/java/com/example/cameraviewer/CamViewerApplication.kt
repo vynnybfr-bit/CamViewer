@@ -37,7 +37,7 @@ class CamViewerApplication : Application() {
             tag = WATERMARK_TAG
             setImageResource(com.example.cameraviewer.R.drawable.botafogo_watermark)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            alpha = 0.45f
+            alpha = 1.0f
             isClickable = false
             isFocusable = false
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO

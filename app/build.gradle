@@ -38,7 +38,17 @@ def downloadAssets = tasks.register('downloadAssets') {
 
         assets.each { name, urlString ->
             def destination = new File(drawableDir, name)
-            new URL(urlString).withInputStream { input ->
+            def connection = new URL(urlString).openConnection()
+            connection.setRequestProperty('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36')
+            connection.setConnectTimeout(30000)
+            connection.setReadTimeout(60000)
+            connection.connect()
+
+            if (connection.responseCode != 200) {
+                throw new GradleException("Failed to download ${name}: HTTP ${connection.responseCode}")
+            }
+
+            connection.inputStream.withCloseable { input ->
                 destination.withOutputStream { output ->
                     output << input
                 }

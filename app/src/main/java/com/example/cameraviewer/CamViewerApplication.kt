@@ -33,6 +33,12 @@ class CamViewerApplication : Application() {
         val decor = activity.window.decorView as? ViewGroup ?: return
         if (decor.findViewWithTag<View>(WATERMARK_TAG) != null) return
 
+        // The previous version inserted the image directly into the decor at
+        // index 0. On Android TV that could put it behind the content container
+        // and make the image disappear completely. Put it inside the activity's
+        // content FrameLayout instead, behind the existing app view.
+        val content = decor.findViewById<ViewGroup>(android.R.id.content) ?: return
+
         val watermark = ImageView(activity).apply {
             tag = WATERMARK_TAG
             setImageResource(com.example.cameraviewer.R.drawable.botafogo_watermark)
@@ -51,9 +57,7 @@ class CamViewerApplication : Application() {
             gravity = Gravity.CENTER
         }
 
-        // Put the watermark behind the app content so it never covers
-        // the text, buttons, or other elements on the home screen.
-        decor.addView(watermark, 0, params)
+        content.addView(watermark, 0, params)
 
         decor.viewTreeObserver.addOnGlobalLayoutListener {
             if (watermark.isAttachedToWindow) {

@@ -2,7 +2,6 @@ package com.example.cameraviewer
 
 import android.app.Activity
 import android.app.Application
-import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -42,7 +41,6 @@ class CamViewerApplication : Application() {
             isClickable = false
             isFocusable = false
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            setColorFilter(Color.WHITE)
             visibility = View.GONE
         }
 

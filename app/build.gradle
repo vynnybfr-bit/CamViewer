@@ -25,14 +25,14 @@ kotlin {
     jvmToolchain(21)
 }
 
-// Download the original image files during the build instead of redrawing or altering them.
+// Download the original image files during the build without redrawing or altering them.
 def downloadAssets = tasks.register('downloadAssets') {
     doLast {
         def drawableDir = file("$projectDir/src/main/res/drawable")
         drawableDir.mkdirs()
 
         def assets = [
-            'ic_camviewer.png': 'https://cdn.creativefabrica.com/2021/08/05/Security-camera-icon-Graphics-15525544-1-1-580x386.jpg',
+            'ic_camviewer.jpg': 'https://cdn.creativefabrica.com/2021/08/05/Security-camera-icon-Graphics-15525544-1-1-580x386.jpg',
             'botafogo_watermark.png': 'https://commons.wikimedia.org/wiki/Special:Redirect/file/Escudo_Botafogo.png'
         ]
 

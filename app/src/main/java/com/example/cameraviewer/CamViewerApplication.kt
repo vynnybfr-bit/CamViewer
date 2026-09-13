@@ -2,6 +2,8 @@ package com.example.cameraviewer
 
 import android.app.Activity
 import android.app.Application
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -33,11 +35,13 @@ class CamViewerApplication : Application() {
         val decor = activity.window.decorView as? ViewGroup ?: return
         if (decor.findViewWithTag<View>(WATERMARK_TAG) != null) return
 
-        // The previous version inserted the image directly into the decor at
-        // index 0. On Android TV that could put it behind the content container
-        // and make the image disappear completely. Put it inside the activity's
-        // content FrameLayout instead, behind the existing app view.
+        // The app content itself is a black LinearLayout. If the watermark is
+        // placed behind that opaque layout, it disappears. Keep the actual
+        // window background black and make the app root transparent so the
+        // watermark can sit between the black background and the text/buttons.
+        activity.window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
         val content = decor.findViewById<ViewGroup>(android.R.id.content) ?: return
+        findAppRoot(content)?.setBackgroundColor(Color.TRANSPARENT)
 
         val watermark = ImageView(activity).apply {
             tag = WATERMARK_TAG
@@ -57,13 +61,24 @@ class CamViewerApplication : Application() {
             gravity = Gravity.CENTER
         }
 
+        // Content order: black window background -> watermark -> transparent
+        // app root -> all app text/buttons. Exactly the requested layering.
         content.addView(watermark, 0, params)
 
         decor.viewTreeObserver.addOnGlobalLayoutListener {
             if (watermark.isAttachedToWindow) {
+                findAppRoot(content)?.setBackgroundColor(Color.TRANSPARENT)
                 watermark.visibility = if (isHomeScreen(decor)) View.VISIBLE else View.GONE
             }
         }
+    }
+
+    private fun findAppRoot(content: ViewGroup): View? {
+        for (i in 0 until content.childCount) {
+            val child = content.getChildAt(i)
+            if (child !is ImageView || child.tag != WATERMARK_TAG) return child
+        }
+        return null
     }
 
     private fun isHomeScreen(root: View): Boolean {

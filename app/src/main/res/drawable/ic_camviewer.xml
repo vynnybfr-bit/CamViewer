@@ -4,13 +4,29 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- CCTV / surveillance camera icon -->
     <path
         android:fillColor="#111111"
-        android:pathData="M20,32 L34,32 L41,24 L67,24 L74,32 L88,32 C93.5,32 98,36.5 98,42 L98,78 C98,83.5 93.5,88 88,88 L20,88 C14.5,88 10,83.5 10,78 L10,42 C10,36.5 14.5,32 20,32 Z" />
+        android:pathData="M18,35 L67,35 C72,35 76,39 76,44 L76,64 C76,69 72,73 67,73 L18,73 C13,73 9,69 9,64 L9,44 C9,39 13,35 18,35 Z" />
+    <path
+        android:fillColor="#111111"
+        android:pathData="M72,43 L94,50 C98,51.3 100,55 98.5,59 L96,66 C94.7,69.5 91,71.3 87.5,70 L72,64 Z" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,39 A18,18 0,1 0,54 75 A18,18 0,1 0,54 39 Z M54,45 A12,12 0,1 1,54 69 A12,12 0,1 1,54 45 Z" />
+        android:pathData="M26,42 L57,42 C61,42 64,45 64,49 L64,59 C64,63 61,66 57,66 L26,66 C22,66 19,63 19,59 L19,49 C19,45 22,42 26,42 Z" />
+    <path
+        android:fillColor="#111111"
+        android:pathData="M29,47 L54,47 C56.2,47 58,48.8 58,51 L58,57 C58,59.2 56.2,61 54,61 L29,61 C26.8,61 25,59.2 25,57 L25,51 C25,48.8 26.8,47 29,47 Z" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M82,38 A4,4 0,1 0,82 46 A4,4 0,1 0,82 38 Z" />
+        android:pathData="M35,48 A6,6 0,1 0,35 60 A6,6 0,1 0,35 48 Z" />
+    <path
+        android:fillColor="#111111"
+        android:pathData="M35,51 A3,3 0,1 1,35 57 A3,3 0,1 1,35 51 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16,76 L28,76 L28,82 L16,82 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M80,38 L86,40 L84,47 L78,45 Z" />
 </vector>

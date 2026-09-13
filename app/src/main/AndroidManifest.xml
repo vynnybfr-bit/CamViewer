@@ -13,7 +13,10 @@
     <application
         android:allowBackup="true"
         android:label="CamViewer"
+        android:icon="@drawable/ic_camviewer"
+        android:roundIcon="@drawable/ic_camviewer"
         android:supportsRtl="true"
+        android:name=".CamViewerApplication"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <activity
